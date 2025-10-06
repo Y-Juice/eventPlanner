@@ -1,24 +1,78 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+import { Tabs } from "expo-router";
+import { Image } from "react-native";
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
+const icons = {
+  home: require("../assets/home.png"),
+  bookmarked: require("../assets/saved.png"),
+  planEvent: require("../assets/plusIcon.png"),
+  calender: require("../assets/calendar.png"),
+  profile: require("../assets/profile.png"),
 };
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
-
+function TabBarIcon({ source, focused }: { source: any; focused: boolean }) {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <Image
+      source={source}
+      style={{
+        width: 28,
+        height: 28,
+        }}
+      resizeMode="contain"
+    />
+  );
+}
+
+export default function Layout() {
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: "#007AFF",
+        },
+        tabBarShowLabel: false, // Hide text under icons
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon source={icons.home} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="bookmarked"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon source={icons.bookmarked} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="planEvent"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon source={icons.planEvent} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="calender"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon source={icons.calender} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabBarIcon source={icons.profile} focused={focused} />
+          ),
+        }}
+      />
+    </Tabs>
   );
 }
