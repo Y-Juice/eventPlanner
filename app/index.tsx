@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, Image, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, FlatList, Image, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from "react-native";
 import { supabase } from "../client/supabaseClient";
+import { Calendar } from "react-native-calendars";
 
 const PAGE_SIZE = 10;
 
@@ -14,6 +15,10 @@ export default function HomePage() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [calendarEvents, setCalendarEvents] = useState<any>({});
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [dayEvents, setDayEvents] = useState<any[]>([]);
+  const [modalVisible, setModalVisible] = useState(false);
 
   // Fetch unique categories for chips
   useEffect(() => {
@@ -60,11 +65,27 @@ export default function HomePage() {
 
       setEvents(page === 1 ? filteredData : [...events, ...filteredData]);
       setHasMore(filteredData.length === PAGE_SIZE);
+
+      // Prepare calendar markers
+      const marked: any = {};
+      filteredData.forEach(ev => {
+        if (ev.date) {
+          marked[ev.date] = marked[ev.date] || { marked: true, dots: [{ color: "#007AFF" }] };
+        }
+      });
+      setCalendarEvents(marked);
+
       setLoading(false);
     }
     fetchEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, location, date, selectedCategories, page]);
+
+  // Add this useEffect to reset pagination when filters change
+  useEffect(() => {
+    setPage(1);
+    setEvents([]);
+  }, [search, location, date, selectedCategories]);
 
   // Infinite scroll handler
   const handleLoadMore = () => {
@@ -127,7 +148,7 @@ export default function HomePage() {
           height: 32,
           alignContent: "center",
           justifyContent: "center",
-          marginBottom: 20,
+          marginBottom: 80,
           borderRadius: 16,
           marginRight: 8,
         }}
@@ -136,6 +157,72 @@ export default function HomePage() {
         <Text style={{ color: "#fff", fontSize: 13 }}>Reset Filters</Text>
       </TouchableOpacity>
     </ScrollView>
+  );
+
+  // Calendar day press handler
+  const onDayPress = (day: any) => {
+    setSelectedDay(day.dateString);
+    const eventsForDay = events.filter(ev => ev.date === day.dateString);
+    setDayEvents(eventsForDay);
+    setModalVisible(true);
+  };
+
+  // Render events for selected day in modal
+  const renderDayEvents = () => (
+    <Modal
+      visible={modalVisible}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={() => setModalVisible(false)}
+    >
+      <View style={{ flex: 1, padding: 16, backgroundColor: "#F8F8F8" }}>
+        <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 12 }}>
+          Events on {selectedDay}
+        </Text>
+        <FlatList
+          data={dayEvents}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <View
+              style={{
+                marginBottom: 12,
+                backgroundColor: "#fff",
+                padding: 12,
+                borderRadius: 8,
+                shadowColor: "#000",
+                shadowOpacity: 0.05,
+                shadowRadius: 4,
+                elevation: 2,
+              }}
+            >
+              {item.imageUrl ? (
+                <Image
+                  source={{ uri: item.imageUrl }}
+                  style={{ width: "100%", height: 120, borderRadius: 8, marginBottom: 8 }}
+                  resizeMode="cover"
+                />
+              ) : null}
+              <Text style={{ fontWeight: "bold", fontSize: 16 }}>{item.title}</Text>
+              <Text style={{ color: "#007AFF", marginBottom: 2 }}>{item.date} {item.location ? `• ${item.location}` : ""}</Text>
+              <Text style={{ color: "#007AFF", marginBottom: 2 }}>{item.categories}</Text>
+              <Text numberOfLines={2} style={{ color: "#333" }}>{item.description}</Text>
+            </View>
+          )}
+        />
+        <TouchableOpacity
+          style={{
+            backgroundColor: "#007AFF",
+            padding: 12,
+            borderRadius: 8,
+            alignItems: "center",
+            marginTop: 12,
+          }}
+          onPress={() => setModalVisible(false)}
+        >
+          <Text style={{ color: "#fff", fontWeight: "bold" }}>Close</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
   );
 
   return (
@@ -192,6 +279,26 @@ export default function HomePage() {
 
       {/* Category Chips */}
       {renderChips()}
+
+      {/* Calendar */}
+      <Calendar
+        markedDates={calendarEvents}
+        onDayPress={onDayPress}
+        style={{
+          marginBottom: 16,
+          borderRadius: 8,
+          backgroundColor: "#fff",
+          elevation: 2,
+        }}
+        theme={{
+          selectedDayBackgroundColor: "#007AFF",
+          todayTextColor: "#007AFF",
+          dotColor: "#007AFF",
+        }}
+      />
+
+      {/* Modal for day events */}
+      {renderDayEvents()}
 
       {/* Results List */}
       <FlatList
