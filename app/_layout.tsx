@@ -1,6 +1,12 @@
+import { useFonts } from 'expo-font';
 import { Tabs } from "expo-router";
+import * as SplashScreen from 'expo-splash-screen';
+import { useEffect } from "react";
 import { Image, View } from "react-native";
 import 'react-native-url-polyfill/auto';
+
+// Prevent the splash screen from auto-hiding before asset loading is complete.
+SplashScreen.preventAutoHideAsync();
 
 const icons = {
   home: require("../assets/home.png"),
@@ -15,8 +21,8 @@ function TabBarIcon({ source, focused }: { source: any; focused: boolean }) {
     <View
       style={{
         backgroundColor: focused ? "#fff" : "transparent",
-        borderRadius: 5,
-        padding: focused ? 15 : 0,
+        borderRadius: 20,
+        padding: 8,
         alignItems: "center",
         justifyContent: "center",
       }}
@@ -26,7 +32,7 @@ function TabBarIcon({ source, focused }: { source: any; focused: boolean }) {
         style={{
           width: 22,
           height: 22,
-          tintColor: focused ? "#007AFF" : undefined, // Set icon color when focused
+          tintColor: focused ? "#000" : "#fff",
         }}
         resizeMode="contain"
       />
@@ -35,14 +41,30 @@ function TabBarIcon({ source, focused }: { source: any; focused: boolean }) {
 }
 
 export default function Layout() {
+  const [fontsLoaded, fontError] = useFonts({
+    'AlanSans': require('../assets/fonts/alanSans.ttf'),
+  });
+
+  useEffect(() => {
+    if (fontsLoaded || fontError) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, fontError]);
+
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
+
   return (
     <>
       <Tabs
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
-            backgroundColor: "#007AFF",
-            paddingTop: 10, // Add small top padding
+            backgroundColor: "#000",
+            borderTopWidth: 0,
+            elevation: 0,
+            height: 70,
           },
           tabBarShowLabel: false, // Hide text under icons
         }}

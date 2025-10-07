@@ -1,165 +1,147 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, Image, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from "react-native";
-import { supabase } from "../client/supabaseClient";
+import { ActivityIndicator, FlatList, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Calendar } from "react-native-calendars";
+import { supabase } from "../client/supabaseClient";
+import { COLORS, FONTS, SIZES } from "../constants/styles";
 
 const PAGE_SIZE = 10;
+const cardColors = [COLORS.cardYellow, COLORS.cardPink, COLORS.cardBlue, COLORS.cardGreen];
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+  },
+  headerContainer: {
+    padding: SIZES.padding,
+    paddingTop: 50,
+    paddingBottom: 0,
+  },
+  greetingText: {
+    ...FONTS.h1,
+    color: COLORS.text,
+    fontWeight: 900,
+  },
+  subGreetingText: {
+    ...FONTS.body,
+    color: COLORS.textSecondary,
+    marginBottom: SIZES.padding,
+  },
+  eventCard: {
+    marginHorizontal: SIZES.padding,
+    marginBottom: SIZES.base * 1.5,
+    padding: SIZES.padding,
+    borderRadius: SIZES.radius,
+  },
+  eventTitle: {
+    ...FONTS.h3,
+    color: COLORS.black,
+  },
+  eventDetails: {
+    ...FONTS.body,
+    color: COLORS.lightGray,
+    marginBottom: SIZES.base / 2,
+    marginTop: SIZES.base / 2,
+  },
+  modalContainer: {
+    flex: 1,
+    padding: SIZES.padding,
+    backgroundColor: COLORS.primary,
+  },
+  modalTitle: {
+    ...FONTS.h2,
+    color: COLORS.text,
+    marginBottom: SIZES.padding,
+    paddingTop: 40,
+  },
+  closeButton: {
+    backgroundColor: COLORS.lightGray,
+    padding: SIZES.padding / 1.5,
+    borderRadius: SIZES.base,
+    alignItems: "center",
+    marginTop: SIZES.padding,
+  },
+  closeButtonText: {
+    ...FONTS.h3,
+    color: COLORS.text,
+  },
+  monthTitle: {
+    ...FONTS.h3,
+    color: COLORS.text,
+    marginBottom: SIZES.padding,
+    marginTop: SIZES.base,
+  },
+});
+
 
 export default function HomePage() {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [location, setLocation] = useState("");
-  const [date, setDate] = useState("");
-  const [categories, setCategories] = useState<string[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [calendarEvents, setCalendarEvents] = useState<any>({});
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [dayEvents, setDayEvents] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState<string>(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  });
 
-  // Fetch unique categories for chips
-  useEffect(() => {
-    async function fetchCategories() {
-      const { data, error } = await supabase.from("events").select("categories");
-      if (!error && data) {
-        // Split and flatten all categories
-        const allCats = data
-          .map((e: any) => e.categories)
-          .filter(Boolean)
-          .flatMap((catStr: string) => catStr.split(",").map(c => c.trim()));
-        const unique = Array.from(new Set(allCats));
-        setCategories(unique);
-      }
+  const getMonthRange = (yearMonth: string) => {
+    const [yearNum, monthNum] = yearMonth.split('-').map(Number);
+    const firstDay = `${yearNum}-${String(monthNum).padStart(2, '0')}-01`;
+    const lastDate = new Date(yearNum, monthNum, 0).getDate();
+    const lastDay = `${yearNum}-${String(monthNum).padStart(2, '0')}-${String(lastDate).padStart(2, '0')}`;
+    return { firstDay, lastDay };
+  };
+
+  const getMonthLabel = (yearMonth: string) => {
+    try {
+      const [y, m] = yearMonth.split('-').map(Number);
+      const d = new Date(y, m - 1, 1);
+      return d.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+    } catch {
+      return yearMonth;
     }
-    fetchCategories();
-  }, []);
+  };
 
-  // Fetch events with filters and pagination
   useEffect(() => {
     setLoading(true);
     async function fetchEvents() {
-      let query = supabase.from("events").select("*").order("date", { ascending: true }).range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+      const { firstDay, lastDay } = getMonthRange(currentMonth);
+      let query = supabase.from("events").select("*")
+        .order("date", { ascending: false })
+        .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
+        .gte("date", firstDay)
+        .lte("date", lastDay);
 
-      if (search) query = query.ilike("title", `%${search}%`);
-      if (location) query = query.ilike("location", `%${location}%`);
-      if (date) query = query.eq("date", date);
-
-      const { data, error } = await query;
-      let filteredData = data || [];
-
-      // Filter by categories
-      if (selectedCategories.length === 1) {
-        filteredData = filteredData.filter(event =>
-          event.categories &&
-          event.categories.split(",").map((c: string) => c.trim()).includes(selectedCategories[0])
-        );
-      } else if (selectedCategories.length === 2) {
-        filteredData = filteredData.filter(event => {
-          const eventCats = event.categories ? event.categories.split(",").map((c: string) => c.trim()) : [];
-          return selectedCategories.every(cat => eventCats.includes(cat));
-        });
-      }
+      const { data } = await query;
+      const filteredData = data || [];
 
       setEvents(page === 1 ? filteredData : [...events, ...filteredData]);
       setHasMore(filteredData.length === PAGE_SIZE);
 
-      // Prepare calendar markers
       const marked: any = {};
       filteredData.forEach(ev => {
         if (ev.date) {
-          marked[ev.date] = marked[ev.date] || { marked: true, dots: [{ color: "#007AFF" }] };
+          marked[ev.date] = { ...marked[ev.date], marked: true, dotColor: COLORS.white };
         }
       });
       setCalendarEvents(marked);
-
       setLoading(false);
     }
     fetchEvents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, location, date, selectedCategories, page]);
-
-  // Add this useEffect to reset pagination when filters change
+  }, [page, currentMonth]);
+  
   useEffect(() => {
     setPage(1);
     setEvents([]);
-  }, [search, location, date, selectedCategories]);
+  }, [currentMonth]);
 
-  // Infinite scroll handler
   const handleLoadMore = () => {
     if (hasMore && !loading) setPage(page + 1);
   };
 
-  // Toggle category selection (max 2)
-  const toggleCategory = (cat: string) => {
-    setPage(1);
-    setEvents([]);
-    setSelectedCategories(prev => {
-      if (prev.includes(cat)) {
-        return prev.filter(c => c !== cat);
-      } else if (prev.length < 2) {
-        return [...prev, cat];
-      } else {
-        return prev; // Do not allow more than 2
-      }
-    });
-  };
-
-  // Reset all filters
-  const resetFilters = () => {
-    setSearch("");
-    setLocation("");
-    setDate("");
-    setSelectedCategories([]);
-    setPage(1);
-    setEvents([]);
-  };
-
-  // Render category chips
-  const renderChips = () => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 8 }}>
-      {categories.map((cat) => (
-        <TouchableOpacity
-          key={cat}
-          style={{
-            backgroundColor: selectedCategories.includes(cat) ? "#007AFF" : "#fff",
-            paddingHorizontal: 16,
-            height: 32,
-            alignContent: "center",
-            justifyContent: "center",
-            marginBottom: 20,
-            borderRadius: 16,
-            marginRight: 8,
-            borderWidth: 1,
-            borderColor: "#E6F4FE",
-          }}
-          onPress={() => toggleCategory(cat)}
-        >
-          <Text style={{ color: selectedCategories.includes(cat) ? "#fff" : "#616161ff", fontSize: 13 }}>{cat}</Text>
-        </TouchableOpacity>
-      ))}
-      {/* Reset Filters Button */}
-      <TouchableOpacity
-        style={{
-          backgroundColor: "#FF5252",
-          paddingHorizontal: 16,
-          height: 32,
-          alignContent: "center",
-          justifyContent: "center",
-          marginBottom: 80,
-          borderRadius: 16,
-          marginRight: 8,
-        }}
-        onPress={resetFilters}
-      >
-        <Text style={{ color: "#fff", fontSize: 13 }}>Reset Filters</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-
-  // Calendar day press handler
   const onDayPress = (day: any) => {
     setSelectedDay(day.dateString);
     const eventsForDay = events.filter(ev => ev.date === day.dateString);
@@ -167,7 +149,6 @@ export default function HomePage() {
     setModalVisible(true);
   };
 
-  // Render events for selected day in modal
   const renderDayEvents = () => (
     <Modal
       visible={modalVisible}
@@ -175,164 +156,106 @@ export default function HomePage() {
       transparent={false}
       onRequestClose={() => setModalVisible(false)}
     >
-      <View style={{ flex: 1, padding: 16, backgroundColor: "#F8F8F8" }}>
-        <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 12 }}>
+      <View style={styles.modalContainer}>
+        <Text style={styles.modalTitle}>
           Events on {selectedDay}
         </Text>
         <FlatList
           data={dayEvents}
           keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <View
-              style={{
-                marginBottom: 12,
-                backgroundColor: "#fff",
-                padding: 12,
-                borderRadius: 8,
-                shadowColor: "#000",
-                shadowOpacity: 0.05,
-                shadowRadius: 4,
-                elevation: 2,
-              }}
-            >
-              {item.imageUrl ? (
+          renderItem={({ item, index }) => (
+            <View style={[styles.eventCard, { backgroundColor: cardColors[index % cardColors.length] }]}>
+              {item.imageUrl && (
                 <Image
                   source={{ uri: item.imageUrl }}
-                  style={{ width: "100%", height: 120, borderRadius: 8, marginBottom: 8 }}
+                  style={{ width: "100%", height: 120, borderRadius: SIZES.base, marginBottom: SIZES.base }}
                   resizeMode="cover"
                 />
-              ) : null}
-              <Text style={{ fontWeight: "bold", fontSize: 16 }}>{item.title}</Text>
-              <Text style={{ color: "#007AFF", marginBottom: 2 }}>{item.date} {item.location ? `• ${item.location}` : ""}</Text>
-              <Text style={{ color: "#007AFF", marginBottom: 2 }}>{item.categories}</Text>
-              <Text numberOfLines={2} style={{ color: "#333" }}>{item.description}</Text>
+              )}
+              <Text style={styles.eventTitle}>{item.title}</Text>
+              <Text style={styles.eventDetails}>{item.date} {item.location ? `• ${item.location}` : ""}</Text>
+              <Text style={styles.eventDetails}>{item.categories}</Text>
+              <Text numberOfLines={2} style={{color: COLORS.lightGray}}>{item.description}</Text>
             </View>
           )}
         />
         <TouchableOpacity
-          style={{
-            backgroundColor: "#007AFF",
-            padding: 12,
-            borderRadius: 8,
-            alignItems: "center",
-            marginTop: 12,
-          }}
+          style={styles.closeButton}
           onPress={() => setModalVisible(false)}
         >
-          <Text style={{ color: "#fff", fontWeight: "bold" }}>Close</Text>
+          <Text style={styles.closeButtonText}>Close</Text>
         </TouchableOpacity>
       </View>
     </Modal>
   );
 
   return (
-    <View style={{ flex: 1, padding: 16, paddingTop: 30, paddingBottom: 0, backgroundColor: "#F8F8F8" }}>
-      {/* Search Bar */}
-      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-        <TextInput
-          placeholder="Search..."
-          value={search}
-          onChangeText={setSearch}
-          style={{
-            flex: 1,
-            backgroundColor: "#fff",
-            borderRadius: 50,
-            paddingHorizontal: 20,
-            paddingVertical: 12,
-            marginRight: 0,
-            borderWidth: 1,
-            borderColor: "#E6F4FE",
-          }}
-        />
-      </View>
-
-      {/* Filters */}
-      <View style={{ flexDirection: "row", marginBottom: 8 }}>
-        <TextInput
-          placeholder="Location"
-          value={location}
-          onChangeText={setLocation}
-          style={{
-            flex: 1,
-            backgroundColor: "#fff",
-            borderRadius: 16,
-            paddingHorizontal: 12,
-            marginRight: 8,
-            borderWidth: 1,
-            borderColor: "#E6F4FE",
-          }}
-        />
-        <TextInput
-          placeholder="DD-MM-YYYY"
-          value={date}
-          onChangeText={setDate}
-          style={{
-            flex: 1,
-            backgroundColor: "#fff",
-            borderRadius: 16,
-            paddingHorizontal: 12,
-            borderWidth: 1,
-            borderColor: "#E6F4FE",
-          }}
-        />
-      </View>
-
-      {/* Category Chips */}
-      {renderChips()}
-
-      {/* Calendar */}
-      <Calendar
-        markedDates={calendarEvents}
-        onDayPress={onDayPress}
-        style={{
-          marginBottom: 16,
-          borderRadius: 8,
-          backgroundColor: "#fff",
-          elevation: 2,
-        }}
-        theme={{
-          selectedDayBackgroundColor: "#007AFF",
-          todayTextColor: "#007AFF",
-          dotColor: "#007AFF",
-        }}
-      />
-
-      {/* Modal for day events */}
+    <View style={styles.container}>
       {renderDayEvents()}
-
-      {/* Results List */}
       <FlatList
         data={events}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <View
-            style={{
-              marginBottom: 12,
-              backgroundColor: "#fff",
-              padding: 12,
-              borderRadius: 8,
-              shadowColor: "#000",
-              shadowOpacity: 0.05,
-              shadowRadius: 4,
-              elevation: 2,
-            }}
-          >
-            {item.imageUrl ? (
+        renderItem={({ item, index }) => (
+          <View style={[styles.eventCard, { backgroundColor: cardColors[index % cardColors.length] }]}>
+            {item.imageUrl && (
               <Image
                 source={{ uri: item.imageUrl }}
-                style={{ width: "100%", height: 120, borderRadius: 8, marginBottom: 8 }}
+                style={{ width: "100%", height: 120, borderRadius: SIZES.radius / 1.5, marginBottom: SIZES.padding }}
                 resizeMode="cover"
               />
-            ) : null}
-            <Text style={{ fontWeight: "bold", fontSize: 16 }}>{item.title}</Text>
-            <Text style={{ color: "#007AFF", marginBottom: 2 }}>{item.date} {item.location ? `• ${item.location}` : ""}</Text>
-            <Text style={{ color: "#007AFF", marginBottom: 2 }}>{item.categories}</Text>
-            <Text numberOfLines={2} style={{ color: "#333" }}>{item.description}</Text>
+            )}
+            <Text style={styles.eventTitle}>{item.title}</Text>
+            <Text style={styles.eventDetails}>{item.date} {item.location ? `• ${item.location}` : ""}</Text>
+            <Text style={styles.eventDetails}>{item.categories}</Text>
+            <Text numberOfLines={2} style={{ color: COLORS.lightGray }}>{item.description}</Text>
           </View>
         )}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
-        ListFooterComponent={loading ? <ActivityIndicator size="small" color="#007AFF" /> : null}
+        ListFooterComponent={loading ? <ActivityIndicator size="small" color={COLORS.white} /> : null}
+        ListHeaderComponent={
+          <View style={styles.headerContainer}>
+            <Text style={styles.greetingText}>Hi, Tomas</Text>
+            <Text style={styles.subGreetingText}>Here are your events.</Text>
+
+            <Calendar
+              markedDates={calendarEvents}
+              onDayPress={onDayPress}
+              onMonthChange={(m: any) => {
+                const ym = `${m.year}-${String(m.month).padStart(2, '0')}`;
+                setCurrentMonth(ym);
+              }}
+              style={{
+                borderRadius: SIZES.radius,
+                marginBottom: SIZES.padding,
+              }}
+              theme={{
+                calendarBackground: COLORS.secondary,
+                dayTextColor: COLORS.text,
+                textDisabledColor: COLORS.disabled,
+                monthTextColor: COLORS.text,
+                arrowColor: COLORS.text,
+                todayTextColor: COLORS.accent,
+                selectedDayBackgroundColor: COLORS.white,
+                selectedDayTextColor: COLORS.primary,
+                'stylesheet.calendar.header': {
+                  week: {
+                    marginTop: 5,
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    borderBottomWidth: 1,
+                    borderColor: COLORS.lightGray,
+                    paddingBottom: 10,
+                  }
+                }
+              }}
+            />
+            <Text style={styles.monthTitle}>
+              Events for {getMonthLabel(currentMonth)}
+            </Text>
+          </View>
+        }
+        contentContainerStyle={{ paddingBottom: SIZES.padding }}
       />
     </View>
   );
