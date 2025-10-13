@@ -66,7 +66,8 @@ function ProtectedLayout() {
             backgroundColor: "#000",
             borderTopWidth: 0,
             elevation: 0,
-            height: 70,
+            paddingTop: 8,
+            marginBottom: -16,
           },
           tabBarShowLabel: false, // Hide text under icons
         }}
