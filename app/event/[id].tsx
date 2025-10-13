@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../client/supabaseClient';
 import { COLORS, FONTS, SIZES } from '../../constants/styles';
+import EventMap from '../components/EventMap';
 
 export default function EventDetails() {
   const { id } = useLocalSearchParams();
@@ -60,7 +61,11 @@ export default function EventDetails() {
         <View style={[styles.contentContainer, !event.imageUrl && { paddingTop: 80 }]}>
           <Text style={styles.title}>{event.title}</Text>
           <Text style={styles.date}>{new Date(event.date).toLocaleDateString()} • {event.location}</Text>
-          
+
+          {event.location && (
+            <EventMap location={event.location} height={200} />
+          )}
+
           <Text style={styles.description}>{event.description}</Text>
 
           <TouchableOpacity style={styles.button}>
