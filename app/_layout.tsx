@@ -1,9 +1,10 @@
 import { useFonts } from 'expo-font';
-import { Tabs } from "expo-router";
+import { Tabs, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from "react";
 import { Image, View } from "react-native";
 import 'react-native-url-polyfill/auto';
+import { AuthProvider, useAuth } from '../contexts/AuthContext';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -40,20 +41,21 @@ function TabBarIcon({ source, focused }: { source: any; focused: boolean }) {
   );
 }
 
-export default function Layout() {
-  const [fontsLoaded, fontError] = useFonts({
-    'AlanSans': require('../assets/fonts/alanSans.ttf'),
-  });
+function ProtectedLayout() {
+  const { user, loading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
+    if (loading) return;
 
-  if (!fontsLoaded && !fontError) {
-    return null;
-  }
+    const inAuthGroup = segments[0] === 'login' || segments[0] === 'register';
+
+    // Only redirect authenticated users away from auth screens
+    if (user && inAuthGroup) {
+      router.replace('/');
+    }
+  }, [user, loading, segments, router]);
 
   return (
     <>
@@ -116,6 +118,25 @@ export default function Layout() {
             href: null,
           }}
         />
+        {/* Hide auth screens from tab bar */}
+        <Tabs.Screen
+          name="login"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="register"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="components/EventMap"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
       <View
         style={{
@@ -127,5 +148,27 @@ export default function Layout() {
         {/* Bottom nav items */}
       </View>
     </>
+  );
+}
+
+export default function Layout() {
+  const [fontsLoaded, fontError] = useFonts({
+    'AlanSans': require('../assets/fonts/alanSans.ttf'),
+  });
+
+  useEffect(() => {
+    if (fontsLoaded || fontError) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, fontError]);
+
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
+
+  return (
+    <AuthProvider>
+      <ProtectedLayout />
+    </AuthProvider>
   );
 }

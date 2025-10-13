@@ -1,8 +1,9 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../client/supabaseClient';
 import { COLORS, FONTS, SIZES } from '../../constants/styles';
+import { useAuth } from '../../contexts/AuthContext';
 import EventMap from '../components/EventMap';
 
 export default function EventDetails() {
@@ -10,6 +11,7 @@ export default function EventDetails() {
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (id) {
@@ -68,7 +70,24 @@ export default function EventDetails() {
 
           <Text style={styles.description}>{event.description}</Text>
 
-          <TouchableOpacity style={styles.button}>
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={() => {
+              if (!user) {
+                Alert.alert(
+                  'Login Required',
+                  'Please login to bookmark events',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Login', onPress: () => router.push('/login') }
+                  ]
+                );
+              } else {
+                // TODO: Implement bookmark functionality
+                Alert.alert('Success', 'Event bookmarked!');
+              }
+            }}
+          >
             <Text style={styles.buttonText}>Bookmark</Text>
           </TouchableOpacity>
 
