@@ -1,3 +1,4 @@
+import { Link } from 'expo-router';
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Calendar } from "react-native-calendars";
@@ -13,8 +14,9 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     padding: SIZES.padding,
-    paddingTop: 50,
+    paddingTop: SIZES.marginTop,
     paddingBottom: 0,
+
   },
   greetingText: {
     ...FONTS.h1,
@@ -196,19 +198,23 @@ export default function HomePage() {
         data={events}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item, index }) => (
-          <View style={[styles.eventCard, { backgroundColor: cardColors[index % cardColors.length] }]}>
-            {item.imageUrl && (
-              <Image
-                source={{ uri: item.imageUrl }}
-                style={{ width: "100%", height: 120, borderRadius: SIZES.radius / 1.5, marginBottom: SIZES.padding }}
-                resizeMode="cover"
-              />
-            )}
-            <Text style={styles.eventTitle}>{item.title}</Text>
-            <Text style={styles.eventDetails}>{item.date} {item.location ? `• ${item.location}` : ""}</Text>
-            <Text style={styles.eventDetails}>{item.categories}</Text>
-            <Text numberOfLines={2} style={{ color: COLORS.lightGray }}>{item.description}</Text>
-          </View>
+          <Link href={`/event/${item.id}`} asChild>
+            <TouchableOpacity>
+              <View style={[styles.eventCard, { backgroundColor: cardColors[index % cardColors.length] }]}>
+                {item.imageUrl && (
+                  <Image
+                    source={{ uri: item.imageUrl }}
+                    style={{ width: "100%", height: 120, borderRadius: SIZES.radius / 1.5, marginBottom: SIZES.padding }}
+                    resizeMode="cover"
+                  />
+                )}
+                <Text style={styles.eventTitle}>{item.title}</Text>
+                <Text style={styles.eventDetails}>{item.date} {item.location ? `• ${item.location}` : ""}</Text>
+                <Text style={styles.eventDetails}>{item.categories}</Text>
+                <Text numberOfLines={2} style={{ color: COLORS.lightGray }}>{item.description}</Text>
+              </View>
+            </TouchableOpacity>
+          </Link>
         )}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}

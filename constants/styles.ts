@@ -24,6 +24,7 @@ const SIZES = {
   font: 14,
   radius: 20,
   padding: 16,
+  marginTop: 50,
 
   // Font sizes
   h1: 32,

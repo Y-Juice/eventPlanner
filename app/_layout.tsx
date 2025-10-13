@@ -109,6 +109,13 @@ export default function Layout() {
             ),
           }}
         />
+        {/* This hides the event detail page from the tab bar */}
+        <Tabs.Screen
+          name="event/[id]"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
       <View
         style={{
