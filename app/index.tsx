@@ -4,6 +4,7 @@ import { ActivityIndicator, FlatList, Image, Modal, StyleSheet, Text, TouchableO
 import { Calendar } from "react-native-calendars";
 import { supabase } from "../client/supabaseClient";
 import { COLORS, FONTS, SIZES } from "../constants/styles";
+import { useAuth } from '../contexts/AuthContext';
 
 const PAGE_SIZE = 10;
 const cardColors = [COLORS.cardYellow, COLORS.cardPink, COLORS.cardBlue, COLORS.cardGreen];
@@ -22,6 +23,7 @@ const styles = StyleSheet.create({
     ...FONTS.h1,
     color: COLORS.text,
     fontWeight: 900,
+    paddingBottom: SIZES.padding,
   },
   subGreetingText: {
     ...FONTS.body,
@@ -76,6 +78,7 @@ const styles = StyleSheet.create({
 
 
 export default function HomePage() {
+  const { user, profileVersion } = useAuth();
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -84,6 +87,7 @@ export default function HomePage() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [dayEvents, setDayEvents] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [username, setUsername] = useState('Guest');
   const [currentMonth, setCurrentMonth] = useState<string>(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -106,6 +110,30 @@ export default function HomePage() {
       return yearMonth;
     }
   };
+
+  const fetchUsername = async () => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', user.id)
+      .single();
+
+    if (error) {
+      console.error('Error fetching username:', error);
+    } else if (data) {
+      setUsername(data.username || 'Guest');
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchUsername();
+    } else {
+      setUsername('Guest');
+    }
+  }, [user, profileVersion]);
 
   useEffect(() => {
     setLoading(true);
@@ -221,8 +249,7 @@ export default function HomePage() {
         ListFooterComponent={loading ? <ActivityIndicator size="small" color={COLORS.white} /> : null}
         ListHeaderComponent={
           <View style={styles.headerContainer}>
-            <Text style={styles.greetingText}>Hi, Tomas</Text>
-            <Text style={styles.subGreetingText}>Here are your events.</Text>
+            <Text style={styles.greetingText}>Hi, {username}</Text>
 
             <Calendar
               markedDates={calendarEvents}

@@ -6,13 +6,14 @@ import { COLORS, FONTS, SIZES } from '../constants/styles';
 
 export default function Register() {
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleRegister = async () => {
-    if (!email || !password || !confirmPassword) {
+    if (!email || !username || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -31,24 +32,32 @@ export default function Register() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          username: username,
+        },
+      },
     });
 
     setLoading(false);
 
     if (error) {
       Alert.alert('Registration Failed', error.message);
-    } else {
-      Alert.alert(
-        'Success',
-        'Account created successfully! Please check your email to verify your account.',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.replace('/login'),
-          },
-        ]
-      );
+      return;
     }
+
+    // Profile will be created automatically by a database trigger
+    // or we'll create it on first login
+    Alert.alert(
+      'Success',
+      'Account created successfully! Please check your email to verify your account.',
+      [
+        {
+          text: 'OK',
+          onPress: () => router.replace('/login'),
+        },
+      ]
+    );
   };
 
   return (
@@ -67,6 +76,15 @@ export default function Register() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
+        />
+
+        <TextInput
+          style={styles.input}
+          placeholder="Username"
+          placeholderTextColor={COLORS.textSecondary}
+          value={username}
+          onChangeText={setUsername}
+          autoCapitalize="none"
         />
 
         <TextInput

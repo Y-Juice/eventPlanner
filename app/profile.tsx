@@ -1,12 +1,16 @@
 import { Stack, useRouter } from 'expo-router';
-import { useEffect } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { supabase } from '../client/supabaseClient';
 import { COLORS, FONTS, SIZES } from '../constants/styles';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Profile() {
-  const { user, signOut, loading } = useAuth();
+  const { user, signOut, loading, refreshProfile } = useAuth();
   const router = useRouter();
+  const [username, setUsername] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -14,6 +18,53 @@ export default function Profile() {
       router.replace('/login');
     }
   }, [user, loading, router]);
+
+  useEffect(() => {
+    if (user) {
+      fetchProfile();
+    }
+  }, [user]);
+
+  const fetchProfile = async () => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', user.id)
+      .single();
+
+    if (error) {
+      console.error('Error fetching profile:', error);
+    } else if (data) {
+      setUsername(data.username || '');
+    }
+  };
+
+  const handleSaveUsername = async () => {
+    if (!user || !username.trim()) {
+      Alert.alert('Error', 'Username cannot be empty');
+      return;
+    }
+
+    setSaving(true);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ username: username.trim() })
+      .eq('id', user.id);
+
+    setSaving(false);
+
+    if (error) {
+      Alert.alert('Error', 'Failed to update username');
+      console.error('Update error:', error);
+    } else {
+      Alert.alert('Success', 'Username updated successfully');
+      setIsEditing(false);
+      // Trigger refresh in other components that use username
+      refreshProfile();
+    }
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -42,6 +93,52 @@ export default function Profile() {
       <View style={styles.content}>
         <Text style={styles.title}>Profile</Text>
         
+        <View style={styles.infoContainer}>
+          <Text style={styles.label}>Username</Text>
+          {isEditing ? (
+            <TextInput
+              style={styles.input}
+              value={username}
+              onChangeText={setUsername}
+              placeholder="Enter username"
+              placeholderTextColor={COLORS.textSecondary}
+              autoCapitalize="none"
+            />
+          ) : (
+            <Text style={styles.value}>{username || 'Not set'}</Text>
+          )}
+        </View>
+
+        {isEditing ? (
+          <View style={styles.buttonRow}>
+            <TouchableOpacity 
+              style={[styles.editButton, styles.cancelButton]} 
+              onPress={() => {
+                setIsEditing(false);
+                fetchProfile();
+              }}
+            >
+              <Text style={styles.editButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.editButton, saving && styles.buttonDisabled]} 
+              onPress={handleSaveUsername}
+              disabled={saving}
+            >
+              <Text style={styles.editButtonText}>
+                {saving ? 'Saving...' : 'Save'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity 
+            style={styles.editButton} 
+            onPress={() => setIsEditing(true)}
+          >
+            <Text style={styles.editButtonText}>Edit Username</Text>
+          </TouchableOpacity>
+        )}
+
         <View style={styles.infoContainer}>
           <Text style={styles.label}>Email</Text>
           <Text style={styles.value}>{user?.email || 'Not available'}</Text>
@@ -105,5 +202,37 @@ const styles = StyleSheet.create({
     ...FONTS.body,
     color: COLORS.textSecondary,
     textAlign: 'center',
+  },
+  input: {
+    backgroundColor: COLORS.primary,
+    borderRadius: SIZES.radius / 2,
+    padding: SIZES.base,
+    color: COLORS.white,
+    ...FONTS.h3,
+    marginTop: SIZES.base / 2,
+  },
+  editButton: {
+    backgroundColor: COLORS.secondary,
+    padding: SIZES.padding,
+    borderRadius: SIZES.radius,
+    alignItems: 'center',
+    marginBottom: SIZES.padding,
+  },
+  editButtonText: {
+    ...FONTS.body,
+    color: COLORS.white,
+    fontWeight: '600',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: SIZES.base,
+    marginBottom: SIZES.padding,
+  },
+  cancelButton: {
+    backgroundColor: COLORS.lightGray,
+    flex: 1,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });
