@@ -1,5 +1,5 @@
-import { Link } from 'expo-router';
-import React, { useEffect, useState } from "react";
+import { Link, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { supabase } from "../client/supabaseClient";
@@ -74,6 +74,17 @@ const styles = StyleSheet.create({
     marginBottom: SIZES.padding,
     marginTop: SIZES.base,
   },
+  showAllButton: {
+    backgroundColor: COLORS.accent,
+    padding: SIZES.padding / 1.5,
+    borderRadius: SIZES.radius,
+    alignItems: "center",
+    marginTop: SIZES.padding,
+  },
+  showAllButtonText: {
+    ...FONTS.h3,
+    color: COLORS.white,
+  },
 });
 
 
@@ -88,6 +99,7 @@ export default function HomePage() {
   const [dayEvents, setDayEvents] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [username, setUsername] = useState('Guest');
+  const [dateFilter, setDateFilter] = useState<string | null>(null); // New state for filtering
   const [currentMonth, setCurrentMonth] = useState<string>(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -135,38 +147,67 @@ export default function HomePage() {
     }
   }, [user, profileVersion]);
 
-  useEffect(() => {
+  const fetchEvents = useCallback(async (isRefetch = false) => {
     setLoading(true);
-    async function fetchEvents() {
-      const { firstDay, lastDay } = getMonthRange(currentMonth);
-      let query = supabase.from("events").select("*")
-        .order("date", { ascending: false })
-        .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1)
+    const currentPage = isRefetch ? 1 : page;
+
+    let query = supabase.from("events").select("*")
+      .order("date", { ascending: true });
+
+    if (dateFilter) {
+      // Filtering by a specific month
+      const { firstDay, lastDay } = getMonthRange(dateFilter);
+      query = query
         .gte("date", firstDay)
         .lte("date", lastDay);
+    } else {
+      // Show all upcoming events
+      const today = new Date().toISOString().split('T')[0];
+      query = query.gte("date", today);
+    }
+    
+    query = query.range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
+    
+    const { data } = await query;
+    const filteredData = data || [];
+    
+    if (currentPage === 1) {
+      setEvents(filteredData);
+    } else {
+      setEvents(prevEvents => [...prevEvents, ...filteredData]);
+    }
+    
+    setHasMore(filteredData.length === PAGE_SIZE);
 
-      const { data } = await query;
-      const filteredData = data || [];
+    // Update calendar marks based on currently viewed month, not all fetched events
+    const { data: monthEvents } = await supabase.from("events").select("date")
+      .gte("date", getMonthRange(currentMonth).firstDay)
+      .lte("date", getMonthRange(currentMonth).lastDay);
 
-      setEvents(page === 1 ? filteredData : [...events, ...filteredData]);
-      setHasMore(filteredData.length === PAGE_SIZE);
-
-      const marked: any = {};
-      filteredData.forEach(ev => {
+    const marked: any = {};
+    if (monthEvents) {
+      monthEvents.forEach(ev => {
         if (ev.date) {
           marked[ev.date] = { ...marked[ev.date], marked: true, dotColor: COLORS.white };
         }
       });
-      setCalendarEvents(marked);
-      setLoading(false);
     }
-    fetchEvents();
-  }, [page, currentMonth]);
-  
+    setCalendarEvents(marked);
+    setLoading(false);
+  }, [page, currentMonth, dateFilter]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setPage(1);
+      fetchEvents(true);
+    }, [dateFilter])
+  );
+
   useEffect(() => {
-    setPage(1);
-    setEvents([]);
-  }, [currentMonth]);
+    if (page > 1) {
+      fetchEvents();
+    }
+  }, [page]);
 
   const handleLoadMore = () => {
     if (hasMore && !loading) setPage(page + 1);
@@ -175,6 +216,10 @@ export default function HomePage() {
   const onDayPress = (day: any) => {
     setSelectedDay(day.dateString);
     const eventsForDay = events.filter(ev => ev.date === day.dateString);
+    if (eventsForDay.length === 0) {
+      // If no events are loaded for that day, fetch them specifically
+      setDateFilter(day.dateString);
+    }
     setDayEvents(eventsForDay);
     setModalVisible(true);
   };
@@ -257,6 +302,7 @@ export default function HomePage() {
               onMonthChange={(m: any) => {
                 const ym = `${m.year}-${String(m.month).padStart(2, '0')}`;
                 setCurrentMonth(ym);
+                setDateFilter(ym); // Set filter to the new month
               }}
               style={{
                 borderRadius: SIZES.radius,
@@ -283,8 +329,13 @@ export default function HomePage() {
                 }
               }}
             />
+            {dateFilter && (
+              <TouchableOpacity style={styles.showAllButton} onPress={() => setDateFilter(null)}>
+                <Text style={styles.showAllButtonText}>Show All Upcoming Events</Text>
+              </TouchableOpacity>
+            )}
             <Text style={styles.monthTitle}>
-              Events for {getMonthLabel(currentMonth)}
+              {dateFilter ? `Events for ${getMonthLabel(dateFilter)}` : "Upcoming Events"}
             </Text>
           </View>
         }
