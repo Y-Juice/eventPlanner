@@ -10,6 +10,7 @@ export default function EventDetails() {
   const { id } = useLocalSearchParams();
   const [event, setEvent] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isBookmarked, setIsBookmarked] = useState(false);
   const router = useRouter();
   const { user } = useAuth();
 
@@ -35,6 +36,74 @@ export default function EventDetails() {
       fetchEvent();
     }
   }, [id]);
+
+  useEffect(() => {
+    const checkBookmarkStatus = async () => {
+      if (user && id) {
+        const { data } = await supabase
+          .from('bookmarks')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('event_id', id)
+          .single();
+
+        if (data) {
+          setIsBookmarked(true);
+        } else {
+          setIsBookmarked(false);
+        }
+      }
+    };
+
+    checkBookmarkStatus();
+  }, [user, id]);
+
+  const handleBookmark = async () => {
+    if (!user) {
+      Alert.alert(
+        'Login Required',
+        'Please login to bookmark events',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Login', onPress: () => router.push('/login') }
+        ]
+      );
+      return;
+    }
+
+    if (isBookmarked) {
+      const { error } = await supabase
+        .from('bookmarks')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('event_id', id);
+
+      if (error) {
+        console.error('Error removing bookmark:', error);
+        Alert.alert('Error', 'Failed to remove bookmark');
+      } else {
+        setIsBookmarked(false);
+        Alert.alert('Success', 'Bookmark removed!');
+      }
+    } else {
+      const { error } = await supabase
+        .from('bookmarks')
+        .insert([
+          {
+            user_id: user.id,
+            event_id: id,
+          }
+        ]);
+
+      if (error) {
+        console.error('Error adding bookmark:', error);
+        Alert.alert('Error', 'Failed to add bookmark');
+      } else {
+        setIsBookmarked(true);
+        Alert.alert('Success', 'Event bookmarked!');
+      }
+    }
+  };
 
   if (loading) {
     return (
@@ -72,23 +141,11 @@ export default function EventDetails() {
 
           <TouchableOpacity 
             style={styles.button}
-            onPress={() => {
-              if (!user) {
-                Alert.alert(
-                  'Login Required',
-                  'Please login to bookmark events',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Login', onPress: () => router.push('/login') }
-                  ]
-                );
-              } else {
-                // TODO: Implement bookmark functionality
-                Alert.alert('Success', 'Event bookmarked!');
-              }
-            }}
+            onPress={handleBookmark}
           >
-            <Text style={styles.buttonText}>Bookmark</Text>
+            <Text style={styles.buttonText}>
+              {isBookmarked ? 'Remove Bookmark' : 'Bookmark'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.button}>
