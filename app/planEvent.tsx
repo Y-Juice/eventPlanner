@@ -57,6 +57,7 @@ export default function PlanEvent() {
           location: location.trim() || null,
           categories: categories.trim() || null,
           image_url: imageUrl.trim() || null,
+          user_id: user.id, // Add the user's ID
         }
       ])
       .select();
