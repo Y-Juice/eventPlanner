@@ -1,9 +1,13 @@
+import NetInfo from '@react-native-community/netinfo';
+import { Image } from 'expo-image';
 import { Link, useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { supabase } from "../client/supabaseClient";
 import { COLORS, FONTS, SIZES } from "../constants/styles";
 import { useAuth } from '../contexts/AuthContext';
+import { getData, storeData } from './utils/cache';
+
 
 const cardColors = [COLORS.cardYellow, COLORS.cardPink, COLORS.cardBlue, COLORS.cardGreen];
 
@@ -14,90 +18,36 @@ export default function BookmarkedPage() {
 
   const fetchBookmarkedEvents = useCallback(async () => {
     if (!user) {
-      console.log('No user logged in');
       setLoading(false);
       return;
     }
 
-    console.log('Fetching bookmarks for user:', user.id);
     setLoading(true);
-    
-    try {
-      const { data: bookmarks, error: bookmarksError } = await supabase
-        .from('bookmarks')
-        .select(`
-          event_id,
-          events (
-            id,
-            title,
-            description,
-            date,
-            location,
-            categories,
-            imageUrl
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+    const cacheKey = `bookmarked_events_${user.id}`;
+    const netInfo = await NetInfo.fetch();
 
-      console.log('Bookmarks with events data:', bookmarks);
-      console.log('Bookmarks error:', bookmarksError);
-
-      if (bookmarksError) {
-        console.log('Join query failed, trying fallback approach...');
-        
-        const { data: bookmarksOnly, error: fallbackError } = await supabase
+    if (netInfo.isConnected) {
+      try {
+        const { data: bookmarks, error } = await supabase
           .from('bookmarks')
-          .select('event_id')
+          .select('events (*)')
           .eq('user_id', user.id);
 
-        if (fallbackError) {
-          console.error('Fallback error:', fallbackError);
-          setLoading(false);
-          return;
-        }
+        if (error) throw error;
 
-        if (!bookmarksOnly || bookmarksOnly.length === 0) {
-          console.log('No bookmarks found');
-          setBookmarkedEvents([]);
-          setLoading(false);
-          return;
-        }
-
-        const eventIds = bookmarksOnly.map(b => b.event_id);
-        console.log('Event IDs to fetch:', eventIds);
-        
-        const { data: events, error: eventsError } = await supabase
-          .from('events')
-          .select('*')
-          .in('id', eventIds)
-          .order('date', { ascending: false });
-
-        console.log('Events data:', events);
-
-        if (eventsError) {
-          console.error('Error fetching events:', eventsError);
-          setBookmarkedEvents([]);
-        } else {
-          setBookmarkedEvents(events || []);
-        }
-      } else {
-        if (!bookmarks || bookmarks.length === 0) {
-          console.log('No bookmarks found');
-          setBookmarkedEvents([]);
-          setLoading(false);
-          return;
-        }
-
-        const events = bookmarks
-          .map(b => b.events)
-          .filter(event => event !== null);
-        
-        console.log('Extracted events:', events);
+        const events = bookmarks?.map(b => b.events).filter(Boolean) || [];
         setBookmarkedEvents(events);
+        storeData(cacheKey, events);
+      } catch (error) {
+        console.error('Error fetching bookmarked events:', error);
+        const cachedData = await getData(cacheKey);
+        if (cachedData) setBookmarkedEvents(cachedData);
       }
-    } catch (error) {
-      console.error('Unexpected error:', error);
+    } else {
+      const cachedData = await getData(cacheKey);
+      if (cachedData) {
+        setBookmarkedEvents(cachedData);
+      }
     }
     
     setLoading(false);

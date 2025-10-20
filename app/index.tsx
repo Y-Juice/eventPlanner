@@ -1,10 +1,13 @@
+import NetInfo from '@react-native-community/netinfo';
+import { Image } from 'expo-image';
 import { Link, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { supabase } from "../client/supabaseClient";
 import { COLORS, FONTS, SIZES } from "../constants/styles";
 import { useAuth } from '../contexts/AuthContext';
+import { getData, storeData } from './utils/cache';
 
 const PAGE_SIZE = 10;
 const cardColors = [COLORS.cardYellow, COLORS.cardPink, COLORS.cardBlue, COLORS.cardGreen];
@@ -150,49 +153,85 @@ export default function HomePage() {
   const fetchEvents = useCallback(async (isRefetch = false) => {
     setLoading(true);
     const currentPage = isRefetch ? 1 : page;
+    const cacheKey = `events_page_${currentPage}_filter_${dateFilter || 'all'}`;
 
-    let query = supabase.from("events").select("*")
-      .order("date", { ascending: true });
+    const netInfo = await NetInfo.fetch();
 
-    if (dateFilter) {
-      // Filtering by a specific month
-      const { firstDay, lastDay } = getMonthRange(dateFilter);
-      query = query
-        .gte("date", firstDay)
-        .lte("date", lastDay);
-    } else {
-      // Show all upcoming events
-      const today = new Date().toISOString().split('T')[0];
-      query = query.gte("date", today);
-    }
-    
-    query = query.range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
-    
-    const { data } = await query;
-    const filteredData = data || [];
-    
-    if (currentPage === 1) {
-      setEvents(filteredData);
-    } else {
-      setEvents(prevEvents => [...prevEvents, ...filteredData]);
-    }
-    
-    setHasMore(filteredData.length === PAGE_SIZE);
+    if (netInfo.isConnected) {
+      let query = supabase.from("events").select("*")
+        .order("date", { ascending: true });
 
-    // Update calendar marks based on currently viewed month, not all fetched events
-    const { data: monthEvents } = await supabase.from("events").select("date")
-      .gte("date", getMonthRange(currentMonth).firstDay)
-      .lte("date", getMonthRange(currentMonth).lastDay);
+      if (dateFilter) {
+        const { firstDay, lastDay } = getMonthRange(dateFilter);
+        query = query
+          .gte("date", firstDay)
+          .lte("date", lastDay);
+      } else {
+        const today = new Date().toISOString().split('T')[0];
+        query = query.gte("date", today);
+      }
+      
+      query = query.range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
+      
+      const { data, error } = await query;
 
-    const marked: any = {};
-    if (monthEvents) {
-      monthEvents.forEach(ev => {
-        if (ev.date) {
-          marked[ev.date] = { ...marked[ev.date], marked: true, dotColor: COLORS.white };
+      if (error) {
+        console.error("Error fetching events:", error);
+        const cachedData = await getData(cacheKey);
+        if (cachedData) {
+          setEvents(currentPage === 1 ? cachedData : prevEvents => [...prevEvents, ...cachedData]);
         }
-      });
+      } else {
+        const filteredData = data || [];
+        storeData(cacheKey, filteredData);
+        if (currentPage === 1) {
+          setEvents(filteredData);
+        } else {
+          setEvents(prevEvents => [...prevEvents, ...filteredData]);
+        }
+        setHasMore(filteredData.length === PAGE_SIZE);
+      }
+    } else {
+      const cachedData = await getData(cacheKey);
+      if (cachedData) {
+        if (currentPage === 1) {
+          setEvents(cachedData);
+        } else {
+          setEvents(prevEvents => [...prevEvents, ...cachedData]);
+        }
+        setHasMore(cachedData.length === PAGE_SIZE);
+      }
     }
-    setCalendarEvents(marked);
+
+    const monthCacheKey = `month_events_${currentMonth}`;
+    if (netInfo.isConnected) {
+      const { data: monthEvents, error } = await supabase.from("events").select("date")
+        .gte("date", getMonthRange(currentMonth).firstDay)
+        .lte("date", getMonthRange(currentMonth).lastDay);
+      
+      if (error) {
+        console.error("Error fetching month events:", error);
+        const cachedMonthEvents = await getData(monthCacheKey);
+        if (cachedMonthEvents) setCalendarEvents(cachedMonthEvents);
+      } else {
+        const marked: any = {};
+        if (monthEvents) {
+          monthEvents.forEach(ev => {
+            if (ev.date) {
+              marked[ev.date] = { ...marked[ev.date], marked: true, dotColor: COLORS.white };
+            }
+          });
+        }
+        storeData(monthCacheKey, marked);
+        setCalendarEvents(marked);
+      }
+    } else {
+      const cachedMonthEvents = await getData(monthCacheKey);
+      if (cachedMonthEvents) {
+        setCalendarEvents(cachedMonthEvents);
+      }
+    }
+
     setLoading(false);
   }, [page, currentMonth, dateFilter]);
 
