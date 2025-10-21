@@ -6,7 +6,7 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View }
 import { supabase } from "../client/supabaseClient";
 import { COLORS, FONTS, SIZES } from "../constants/styles";
 import { useAuth } from '../contexts/AuthContext';
-import { getData, storeData } from './utils/cache';
+import { getData, storeData } from '../lib/cache';
 
 
 const cardColors = [COLORS.cardYellow, COLORS.cardPink, COLORS.cardBlue, COLORS.cardGreen];

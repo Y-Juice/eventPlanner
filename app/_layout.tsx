@@ -163,6 +163,16 @@ export default function Layout() {
     }
   }, [fontsLoaded, fontError]);
 
+  // Register service worker on web only
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      const swUrl = '/service-worker.js';
+      navigator.serviceWorker.register(swUrl).catch(() => {
+        // no-op
+      });
+    }
+  }, []);
+
   if (!fontsLoaded && !fontError) {
     return null;
   }

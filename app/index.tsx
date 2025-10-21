@@ -7,7 +7,7 @@ import { Calendar } from "react-native-calendars";
 import { supabase } from "../client/supabaseClient";
 import { COLORS, FONTS, SIZES } from "../constants/styles";
 import { useAuth } from '../contexts/AuthContext';
-import { getData, storeData } from './utils/cache';
+import { getData, storeData } from '../lib/cache';
 
 const PAGE_SIZE = 10;
 const cardColors = [COLORS.cardYellow, COLORS.cardPink, COLORS.cardBlue, COLORS.cardGreen];
